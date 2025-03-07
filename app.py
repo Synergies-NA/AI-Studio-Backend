@@ -85,6 +85,19 @@ def init_db():
 
 init_db()
 
+def get_queue_size():
+    inspector = celery.control.inspect()
+    active_tasks = inspector.active()
+    queued_tasks = inspector.reserved()
+    
+    length = 0
+    for tasks in active_tasks.values():
+        length += len(tasks)
+    for tasks in queued_tasks.values():
+        length += len(tasks)
+        
+    return length
+
 # Celery task for image generation
 @celery.task(bind=True, max_retries=3, soft_time_limit=600)
 def generate_image_task(self, job_id, prompt, user_id):
@@ -158,7 +171,7 @@ def generate_image_task(self, job_id, prompt, user_id):
         return {"status": "failed", "error": str(e)}
     finally:
         # Update gauge with current queue size
-        QUEUE_SIZE.dec()
+        QUEUE_SIZE.set(get_queue_size())
 
 # Set up Prometheus metrics endpoint
 @app.route('/metrics')
@@ -264,7 +277,7 @@ def generate_image():
     task = generate_image_task.delay(job_id, prompt, user_id)
     
     # Update gauge with current queue size
-    QUEUE_SIZE.inc()
+    QUEUE_SIZE.set(get_queue_size())
     
     return jsonify({
         'job_id': job_id,
