@@ -4,6 +4,7 @@ from flask_jwt_extended import JWTManager, jwt_required, create_access_token, ge
 from werkzeug.security import generate_password_hash, check_password_hash
 from celery import Celery
 from celery.result import AsyncResult
+from celery.signals import worker_shutdown, task_revoked, task_failure
 import prometheus_client
 from prometheus_client import Counter, Gauge, Histogram
 import time
@@ -84,6 +85,29 @@ def init_db():
     conn.close()
 
 init_db()
+
+@worker_shutdown.connect
+def worker_shutdown_handler(**kwargs):
+    print("Worker shutting down...")
+    
+@task_revoked.connect
+def task_revoked_handler(request=None, terminated=False, signum=None, **kwargs):
+    if terminated and request:
+        job_id = request.args[0] if request.args else None
+        if job_id:
+            try:
+                # Update the job status in the database
+                conn = sqlite3.connect('image_jobs.db')
+                cursor = conn.cursor()
+                cursor.execute(
+                    "UPDATE jobs SET status = ?, completed_at = ? WHERE id = ?", 
+                    ("failed", datetime.now(), job_id)
+                )
+                conn.commit()
+                conn.close()
+                print(f"Updated job {job_id} as failed due to task termination")
+            except Exception as e:
+                print(f"Failed to update database for job {job_id}: {str(e)}")
 
 def get_queue_size():
     inspector = celery.control.inspect()
@@ -360,6 +384,53 @@ def get_result(job_id):
         return send_file(image_path, mimetype='image/png')
     else:
         return jsonify({'error': 'Image file not found'}), 404
+    
+@app.route('/retry/<job_id>', methods=['POST'])
+@jwt_required()
+def retry_job(job_id):
+    user_id = get_jwt_identity()
+    
+    conn = sqlite3.connect('image_jobs.db')
+    cursor = conn.cursor()
+    cursor.execute("SELECT prompt, status, user_id FROM jobs WHERE id = ?", (job_id,))
+    result = cursor.fetchone()
+    
+    if not result:
+        conn.close()
+        return jsonify({'error': 'Job not found'}), 404
+    
+    prompt, status, job_user_id = result
+    
+    # Check ownership or admin privileges
+    if job_user_id != user_id:
+        cursor.execute("SELECT is_admin FROM users WHERE id = ?", (user_id,))
+        admin_result = cursor.fetchone()
+        if not admin_result or not admin_result[0]:
+            conn.close()
+            return jsonify({'error': 'Unauthorized access to this job'}), 403
+    
+    # Can only retry failed jobs
+    if status != 'failed':
+        conn.close()
+        return jsonify({'error': f'Cannot retry job with status: {status}'}), 400
+    
+    # Update job status back to queued
+    cursor.execute(
+        "UPDATE jobs SET status = ?, completed_at = NULL, image_path = NULL WHERE id = ?",
+        ("queued", job_id)
+    )
+    conn.commit()
+    conn.close()
+    
+    # Queue the task again
+    task = generate_image_task.delay(job_id, prompt, user_id)
+    
+    return jsonify({
+        'job_id': job_id,
+        'task_id': task.id,
+        'status': 'queued',
+        'message': 'Job has been requeued'
+    })
 
 # Admin endpoint to view all jobs
 @app.route('/admin/jobs', methods=['GET'])
