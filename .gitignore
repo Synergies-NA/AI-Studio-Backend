@@ -1,0 +1,14 @@
+__pycache__
+.venv
+.DS_Store
+
+# output files from running the server
+/output
+
+/TripoSR
+
+# redis snapshots:
+dump.rdb
+
+# database files
+image_jobs.db
