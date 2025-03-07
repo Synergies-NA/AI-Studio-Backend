@@ -69,3 +69,7 @@ Available stats are:
 * `image_generation_requests_total`: Total number of image generation requests
 * `image_generation_queue_size`: Size of the image generation queue
 * `image_generation_processing_seconds`: Historgram for time spent processing each image generation
+
+
+# Known issues:
+* `image_generation_queue_size` is incorrect somehow. Tried inc() and dec(), saw the log message, but no change.
