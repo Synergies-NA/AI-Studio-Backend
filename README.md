@@ -62,6 +62,7 @@ From the backend folder (current folder):
 3. Run the Flask App: `python app.py`
 From the prometheus folder:
 4. If you have prometheus downloaded, cd to that directory and `./prometheus --config.file=prometheus.yml`
+5. Get the job_monitor running: `python job_monitor.py`
 
 
 # Prometheus stats
