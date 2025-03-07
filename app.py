@@ -195,7 +195,8 @@ def generate_image_task(self, job_id, prompt, user_id):
         return {"status": "failed", "error": str(e)}
     finally:
         # Update gauge with current queue size
-        QUEUE_SIZE.set(get_queue_size())
+        print("Decrementing queue size")
+        QUEUE_SIZE.dec(1)
 
 # Set up Prometheus metrics endpoint
 @app.route('/metrics')
@@ -287,6 +288,9 @@ def generate_image():
     # Increment request counter
     REQUESTS.inc()
     
+    # Increment queue size
+    QUEUE_SIZE.inc()
+    
     # Save job to database
     conn = sqlite3.connect('image_jobs.db')
     cursor = conn.cursor()
@@ -299,9 +303,6 @@ def generate_image():
     
     # Queue the Celery task
     task = generate_image_task.delay(job_id, prompt, user_id)
-    
-    # Update gauge with current queue size
-    QUEUE_SIZE.set(get_queue_size())
     
     return jsonify({
         'job_id': job_id,
