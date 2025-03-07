@@ -56,9 +56,11 @@
 
 # Get it Running:
 
+From the backend folder (current folder):
 1. Get redis-server running: `redis-server`
 2. Get Celery Workers running: `python celery_worker.py`
 3. Run the Flask App: `python app.py`
+From the prometheus folder:
 4. If you have prometheus downloaded, cd to that directory and `./prometheus --config.file=prometheus.yml`
 
 
