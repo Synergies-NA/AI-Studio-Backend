@@ -1,6 +1,8 @@
 
 # Dependencies:
 
+install pyTorch
+
 * For text-to-picture Stable-Diffusion:
     * `pip install diffusers --upgrade`
     * `pip install invisible_watermark transformers accelerate safetensors`
@@ -9,7 +11,7 @@
     In addition to the command mentioned on their md, also do `pip install --upgrade transformers accelerate`
 
 * For backend server of HMLV AI Model:
-`pip install flask flask-jwt-extended celery redis prometheus-client diffusers torch`
+`pip install flask flask-jwt-extended celery redis prometheus-client`
 
 * Install Redis:
     * Ubuntu/Debian: sudo apt-get install redis-server

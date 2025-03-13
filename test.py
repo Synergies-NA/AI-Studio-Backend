@@ -10,7 +10,6 @@ login_response = requests.post('http://127.0.0.1:5000/login',
 if login_response.status_code == 200:
     try:
         login_data = login_response.json()
-        print(login_data)
         token = login_data['access_token']
     except requests.exceptions.JSONDecodeError:
         print("Failed to parse JSON response")

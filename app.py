@@ -2,6 +2,7 @@
 from flask import Flask, request, jsonify, send_file
 from flask_jwt_extended import JWTManager, jwt_required, create_access_token, get_jwt_identity
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
 from celery import Celery
 from celery.result import AsyncResult
 from celery.signals import worker_shutdown, task_revoked, task_failure
@@ -12,6 +13,16 @@ import os
 import uuid
 import sqlite3
 from datetime import datetime, timedelta
+import subprocess
+import sys
+
+# Allowed extensions for image upload
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+OUTPUT_DIR_3D = '../TripoSR/uploads'
 
 app = Flask(__name__)
 app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', 'dev-secret-key')  # Change in production
@@ -52,6 +63,7 @@ def init_db():
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS jobs (
         id TEXT PRIMARY KEY,
+        type TEXT NOT NULL DEFAULT 'image',
         prompt TEXT NOT NULL,
         status TEXT NOT NULL,
         created_at TIMESTAMP NOT NULL,
@@ -122,7 +134,7 @@ def get_queue_size():
         
     return length
 
-# Celery task for image generation
+# Celery task for prompt-to-image generation
 @celery.task(bind=True, max_retries=3, soft_time_limit=600)
 def generate_image_task(self, job_id, prompt, user_id):
     try:
@@ -180,6 +192,84 @@ def generate_image_task(self, job_id, prompt, user_id):
         conn.close()
         
         return {"status": "completed", "image_path": image_path}
+    
+    except Exception as e:
+        # Update job as failed
+        conn = sqlite3.connect('image_jobs.db')
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE jobs SET status = ?, completed_at = ? WHERE id = ?", 
+            ("failed", datetime.now(), job_id)
+        )
+        conn.commit()
+        conn.close()
+        
+        return {"status": "failed", "error": str(e)}
+    finally:
+        # Update gauge with current queue size
+        print("Decrementing queue size")
+        QUEUE_SIZE.dec(1)
+        
+# Celery task for 2D-to-3D model generation
+@celery.task(bind=True, max_retries=3, soft_time_limit=600)
+def generate_3d_model_task(self, job_id, file_path, user_id):
+    try:
+        # Update job status to processing
+        conn = sqlite3.connect('image_jobs.db')
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE jobs SET status = ? WHERE id = ?", 
+            ("processing", job_id)
+        )
+        conn.commit()
+        conn.close()
+        
+        # Start monitoring processing time
+        start_time = time.time()
+        
+        # Run the script for model2
+        print("Running 2D-to-3D script")
+        script = "../TripoSR/run.py"
+        
+        output_dir = f"{OUTPUT_DIR_3D}/{job_id}"
+        with app.app_context():
+            process = subprocess.Popen(
+                ["../TripoSR/.venv/bin/python", script, file_path, "--output-dir", output_dir],
+                cwd="../TripoSR",
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True  # Ensure the output is in text mode
+            )
+            
+            # Read stdout in real time
+            for line in process.stdout:
+                print(line, end='')  # Print the output in real time
+            
+            process.stdout.close()
+            process.wait()
+            
+            print("2D-to-3D Process completed")
+            
+            if process.returncode != 0:
+                stderr = process.stderr.read()
+                process.stderr.close()
+                return {"status": "failed", "error": f"Failed to generate image: {stderr.strip()}"}
+        
+        # Record processing time
+        processing_time = time.time() - start_time
+        PROCESSING_TIME.observe(processing_time)
+        
+        # Update job as completed
+        conn = sqlite3.connect('image_jobs.db')
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE jobs SET status = ?, completed_at = ?, image_path = ? WHERE id = ?", 
+            ("completed", datetime.now(), output_dir + "/0/mesh.obj", job_id)
+        )
+        conn.commit()
+        conn.close()
+        
+        return {"status": "completed", "output_dir": output_dir}
     
     except Exception as e:
         # Update job as failed
@@ -310,6 +400,55 @@ def generate_image():
         'status': 'queued',
         'message': 'Image generation job has been queued'
     })
+    
+# Endpoint for uploading images
+@app.route('/upload', methods=['POST'])
+@jwt_required()
+def upload_image():
+    user_id = get_jwt_identity()
+    
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file part'}), 400
+    
+    file = request.files['file']
+    
+    if file.filename == '':
+        return jsonify({'error': 'No selected file'}), 400
+    
+    if file and allowed_file(file.filename):
+        filename = secure_filename(file.filename)
+        job_id = str(uuid.uuid4())
+        file_path = os.path.join(OUTPUT_DIR_3D, job_id, filename)
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        file.save(file_path)
+        
+        # Increment request counter
+        REQUESTS.inc()
+        
+        # Increment queue size
+        QUEUE_SIZE.inc()
+        
+        # Save job to database
+        conn = sqlite3.connect('image_jobs.db')
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO jobs (id, type, prompt, status, created_at, image_path, user_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (job_id, "3d_model", filename, "queued", datetime.now(), file_path, user_id)
+        )
+        conn.commit()
+        conn.close()
+        
+        # Queue the Celery task
+        task = generate_3d_model_task.delay(job_id, file_path, user_id)
+        
+        return jsonify({
+            'job_id': job_id,
+            'task_id': task.id,
+            'status': 'queued',
+            'message': '3D model generation job has been queued'
+        })
+    else:
+        return jsonify({'error': 'Invalid file type'}), 400
 
 @app.route('/status/<job_id>', methods=['GET'])
 @jwt_required()
@@ -318,14 +457,14 @@ def get_status(job_id):
     
     conn = sqlite3.connect('image_jobs.db')
     cursor = conn.cursor()
-    cursor.execute("SELECT status, created_at, completed_at, user_id FROM jobs WHERE id = ?", (job_id,))
+    cursor.execute("SELECT type, status, created_at, completed_at, user_id FROM jobs WHERE id = ?", (job_id,))
     result = cursor.fetchone()
     conn.close()
     
     if not result:
         return jsonify({'error': 'Job not found'}), 404
     
-    status, created_at, completed_at, job_user_id = result
+    type, status, created_at, completed_at, job_user_id = result
     
     # Check if user owns this job
     if job_user_id != user_id:
@@ -341,6 +480,7 @@ def get_status(job_id):
     
     return jsonify({
         'job_id': job_id,
+        'type': type,
         'status': status,
         'created_at': created_at,
         'completed_at': completed_at
@@ -353,14 +493,14 @@ def get_result(job_id):
     
     conn = sqlite3.connect('image_jobs.db')
     cursor = conn.cursor()
-    cursor.execute("SELECT status, image_path, user_id FROM jobs WHERE id = ?", (job_id,))
+    cursor.execute("SELECT type, status, image_path, user_id FROM jobs WHERE id = ?", (job_id,))
     result = cursor.fetchone()
     conn.close()
     
     if not result:
         return jsonify({'error': 'Job not found'}), 404
     
-    status, image_path, job_user_id = result
+    type, status, image_path, job_user_id = result
     
     # Check if user owns this job
     if job_user_id != user_id:
@@ -382,7 +522,12 @@ def get_result(job_id):
         })
     
     if os.path.exists(image_path):
-        return send_file(image_path, mimetype='image/png')
+        if type == '3d_model':
+            # Zip the output directory
+            # Directly send the .obj file back
+            return send_file(image_path, mimetype='application/octet-stream', as_attachment=True, download_name=f'{job_id}.obj')
+        elif type == 'image':
+            return send_file(image_path, mimetype='image/png')
     else:
         return jsonify({'error': 'Image file not found'}), 404
     
