@@ -1,14 +1,14 @@
 
 # Dependencies:
 
-install pyTorch
+Install pyTorch here: https://pytorch.org/get-started/locally/
 
 * For text-to-picture Stable-Diffusion:
     * `pip install diffusers --upgrade`
     * `pip install invisible_watermark transformers accelerate safetensors`
 
-* For TripoSR setup:
-    In addition to the command mentioned on their md, also do `pip install --upgrade transformers accelerate`
+* Download TripoSR and follow their setup
+    * Note: place TripoSR at the same level as this directory. In other words, make it accessible from this directory by "../TripoSR"
 
 * For backend server of HMLV AI Model:
 `pip install flask flask-jwt-extended celery redis prometheus-client`
