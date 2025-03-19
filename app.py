@@ -616,4 +616,4 @@ def admin_get_all_jobs():
 if __name__ == '__main__':
     # Start prometheus on port 8000 (separate from Flask)
     prometheus_client.start_http_server(8000)
-    app.run(debug=False)
+    app.run(debug=False, port=5001)
