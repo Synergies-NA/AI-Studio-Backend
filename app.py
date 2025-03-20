@@ -407,7 +407,6 @@ def generate_image():
     
     return jsonify({
         'job_id': job_id,
-        'task_id': task.id,
         'status': 'queued',
         'message': 'Image generation job has been queued'
     })
