@@ -15,6 +15,7 @@ import sqlite3
 from datetime import datetime, timedelta
 import subprocess
 import sys
+from flask_cors import CORS
 
 # Allowed extensions for image upload
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
@@ -25,6 +26,16 @@ def allowed_file(filename):
 OUTPUT_DIR_3D = '../TripoSR/uploads'
 
 app = Flask(__name__)
+
+# Enable CORS
+CORS(app, resources={
+    r"/*": {
+        "origins": ["http://localhost:5173"],  # Allow only your frontend origin
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"]
+    }
+})
+
 app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', 'dev-secret-key')  # Change in production
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=1)
 
