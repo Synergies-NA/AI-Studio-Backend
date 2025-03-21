@@ -300,7 +300,7 @@ def generate_3d_model_task(self, job_id, file_path, user_id):
         QUEUE_SIZE.dec(1)
 
 # Set up Prometheus metrics endpoint
-@app.route('/metrics')
+@app.route('/api/metrics')
 @jwt_required()
 def metrics():
     user_id = get_jwt_identity()
@@ -318,7 +318,7 @@ def metrics():
     return prometheus_client.generate_latest()
 
 # Authentication routes
-@app.route('/register', methods=['POST'])
+@app.route('/api/register', methods=['POST'])
 def register():
     data = request.json
     
@@ -348,7 +348,7 @@ def register():
     
     return jsonify({"message": "User registered successfully"}), 201
 
-@app.route('/login', methods=['POST'])
+@app.route('/api/login', methods=['POST'])
 def login():
     data = request.json
     
@@ -374,7 +374,7 @@ def login():
     return jsonify({"access_token": access_token})
 
 # Image generation API endpoints
-@app.route('/generate', methods=['POST'])
+@app.route('/api/generate', methods=['POST'])
 @jwt_required()
 def generate_image():
     user_id = get_jwt_identity()
@@ -412,7 +412,7 @@ def generate_image():
     })
     
 # Endpoint for uploading images
-@app.route('/upload', methods=['POST'])
+@app.route('/api/upload', methods=['POST'])
 @jwt_required()
 def upload_image():
     user_id = get_jwt_identity()
@@ -460,7 +460,7 @@ def upload_image():
     else:
         return jsonify({'error': 'Invalid file type'}), 400
 
-@app.route('/status/<job_id>', methods=['GET'])
+@app.route('/api/status/<job_id>', methods=['GET'])
 @jwt_required()
 def get_status(job_id):
     user_id = get_jwt_identity()
@@ -496,7 +496,7 @@ def get_status(job_id):
         'completed_at': completed_at
     })
 
-@app.route('/result/<job_id>', methods=['GET'])
+@app.route('/api/result/<job_id>', methods=['GET'])
 @jwt_required()
 def get_result(job_id):
     user_id = get_jwt_identity()
@@ -541,7 +541,7 @@ def get_result(job_id):
     else:
         return jsonify({'error': 'Image file not found'}), 404
     
-@app.route('/retry/<job_id>', methods=['POST'])
+@app.route('/api/retry/<job_id>', methods=['POST'])
 @jwt_required()
 def retry_job(job_id):
     user_id = get_jwt_identity()
@@ -589,7 +589,7 @@ def retry_job(job_id):
     })
 
 # Admin endpoint to view all jobs
-@app.route('/admin/jobs', methods=['GET'])
+@app.route('/api/admin/jobs', methods=['GET'])
 @jwt_required()
 def admin_get_all_jobs():
     user_id = get_jwt_identity()
