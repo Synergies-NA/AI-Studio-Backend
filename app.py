@@ -1,5 +1,5 @@
 # app.py
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify, send_file, send_from_directory
 from flask_jwt_extended import JWTManager, jwt_required, create_access_token, get_jwt_identity
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
@@ -25,7 +25,7 @@ def allowed_file(filename):
 
 OUTPUT_DIR_3D = '../TripoSR/uploads'
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder="dist", static_url_path="/")
 
 # Enable CORS
 CORS(app, resources={
@@ -298,6 +298,10 @@ def generate_3d_model_task(self, job_id, file_path, user_id):
         # Update gauge with current queue size
         print("Decrementing queue size")
         QUEUE_SIZE.dec(1)
+
+@app.route("/")
+def serve_react():
+    return send_from_directory(app.static_folder, "index.html")
 
 # Set up Prometheus metrics endpoint
 @app.route('/api/metrics')

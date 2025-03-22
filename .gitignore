@@ -12,3 +12,6 @@ dump.rdb
 
 # database files
 image_jobs.db
+
+# dist folder
+/dist
