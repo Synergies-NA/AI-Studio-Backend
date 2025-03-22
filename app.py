@@ -238,7 +238,7 @@ def generate_3d_model_task(self, job_id, file_path, user_id):
         # Start monitoring processing time
         start_time = time.time()
         
-        # Run the script for model2
+        # Run the script for 2D-3D model
         print("Running 2D-to-3D script")
         script = "../TripoSR/run.py"
         
