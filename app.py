@@ -619,6 +619,39 @@ def get_result(job_id):
     else:
         return jsonify({'error': 'Image file not found'}), 404
     
+@app.route('/api/share/<job_id>', methods=['GET'])
+def share_result(job_id):
+    conn = sqlite3.connect('image_jobs.db')
+    cursor = conn.cursor()
+    cursor.execute("SELECT type, status, image_path FROM jobs WHERE id = ?", (job_id,))
+    result = cursor.fetchone()
+    conn.close()
+    
+    if not result:
+        return jsonify({'error': 'Job not found'}), 404
+    
+    type, status, image_path = result
+    
+    if status != 'completed':
+        return jsonify({
+            'job_id': job_id,
+            'status': status,
+            'message': f'Image generation is {status}'
+        })
+    
+    if os.path.exists(image_path):
+        if type == '3d_model':
+            # send back the input image
+            input_image_path = os.path.join(os.path.dirname(image_path), "input.png")
+            if os.path.exists(input_image_path):
+                return send_file(input_image_path, mimetype='image/png', as_attachment=True, download_name=f'{job_id}_input.png')
+            else:
+                return jsonify({'error': 'Input image file not found'}), 404
+        elif type == 'image':
+            return send_file(image_path, mimetype='image/png')
+    else:
+        return jsonify({'error': 'Image file not found'}), 404
+    
 @app.route('/api/retry/<job_id>', methods=['POST'])
 @jwt_required()
 def retry_job(job_id):
