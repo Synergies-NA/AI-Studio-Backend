@@ -298,6 +298,80 @@ def generate_3d_model_task(self, job_id, file_path, user_id):
         # Update gauge with current queue size
         print("Decrementing queue size")
         QUEUE_SIZE.dec(1)
+        
+# Celery task for 2D-to-2D photo modification (disney)
+@celery.task(bind=True, max_retries=3, soft_time_limit=600)
+def disney(self, job_id, file_name, user_id):
+    try:
+        # Update job status to processing
+        conn = sqlite3.connect('image_jobs.db')
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE jobs SET status = ? WHERE id = ?", 
+            ("processing", job_id)
+        )
+        conn.commit()
+        conn.close()
+        
+        # Start monitoring processing time
+        start_time = time.time()
+        
+        # Run the script for 2D-3D model
+        print("Running 2D-to-2D Disney script")
+        script = "../ComfyUI/disney.py"
+        
+        output_dir = f"{OUTPUT_DIR_3D}/{job_id}"
+        with app.app_context():
+            process = subprocess.Popen(
+                ["../ComfyUI/.venv/bin/python", script, file_name],
+                cwd="../ComfyUI",
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True  # Ensure the output is in text mode
+            )
+            
+            # Read stdout in real time
+            for line in process.stdout:
+                print(line, end='')  # Print the output in real time
+            
+            process.stdout.close()
+            process.wait()
+            
+            print("Disney transformation job sent to ComfyUI")
+            
+            if process.returncode != 0:
+                stderr = process.stderr.read()
+                process.stderr.close()
+                return {"status": "failed", "error": f"Failed to generate image: {stderr.strip()}"}
+        
+        # Record processing time
+        processing_time = time.time() - start_time
+        PROCESSING_TIME.observe(processing_time)
+        
+        # Update job as completed
+        conn = sqlite3.connect('image_jobs.db')
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE jobs SET status = ?, completed_at = ?, image_path = ? WHERE id = ?", 
+            ("completed", datetime.now(), output_dir + "/0/mesh.obj", job_id)
+        )
+        conn.commit()
+        conn.close()
+        
+        return {"status": "completed", "output_dir": output_dir}
+    
+    except Exception as e:
+        # Update job as failed
+        conn = sqlite3.connect('image_jobs.db')
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE jobs SET status = ?, completed_at = ? WHERE id = ?", 
+            ("failed", datetime.now(), job_id)
+        )
+        conn.commit()
+        conn.close()
+        
+        return {"status": "failed", "error": str(e)}
 
 @app.route("/")
 def serve_react():
