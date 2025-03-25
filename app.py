@@ -300,9 +300,9 @@ def generate_3d_model_task(self, job_id, file_path, user_id):
         print("Decrementing queue size")
         QUEUE_SIZE.dec(1)
         
-# Celery task for 2D-to-2D photo modification (disney)
+# Celery task for ComfyUI
 @celery.task(bind=True, max_retries=3, soft_time_limit=600)
-def disney(self, job_id, file_name, user_id):
+def runComfyUI(self, job_id, file_name, user_id, type):
     try:
         # Update job status to processing
         conn = sqlite3.connect('image_jobs.db')
@@ -315,10 +315,10 @@ def disney(self, job_id, file_name, user_id):
         conn.close()
         
         # Run the script for 2D-3D model
-        print("Running 2D-to-2D Disney script")
-        script = f"{COMFY_UI_DIR}/disney.py"
+        print("Running 2D-to-2D script")
+        script = f"{COMFY_UI_DIR}/{type}.py"
         
-        output_dir = f"{COMFY_UI_DIR}/output/Disney_{job_id}_00001.png"
+        output_dir = f"{COMFY_UI_DIR}/output/{type}_{job_id}_00001.png"
         with app.app_context():
             process = subprocess.Popen(
                 [f"{COMFY_UI_DIR}/.venv/bin/python", script, file_name, job_id],
@@ -335,7 +335,7 @@ def disney(self, job_id, file_name, user_id):
             process.stdout.close()
             process.wait()
             
-            print("Disney transformation job sent to ComfyUI")
+            print("{type} job sent to ComfyUI")
             
             if process.returncode != 0:
                 stderr = process.stderr.read()
@@ -488,6 +488,7 @@ def upload_image():
         return jsonify({'error': 'Supported job type is required'}), 400
     
     file = request.files['file']
+    job_type = request.form['job_type']
     
     if file.filename == '':
         return jsonify({'error': 'No selected file'}), 400
@@ -497,7 +498,7 @@ def upload_image():
         job_id = str(uuid.uuid4())
         
         # 3D model: Save job to database
-        if request.form['job_type'] == '3d_model':
+        if job_type == '3d_model':
             file_path = os.path.join(OUTPUT_DIR_3D, job_id, filename)
             os.makedirs(os.path.dirname(file_path), exist_ok=True)
             file.save(file_path)
@@ -523,31 +524,31 @@ def upload_image():
                 'status': 'queued',
                 'message': '3D model generation job has been queued'
             })
-        elif request.form['job_type'] == 'disney':
+        else:
             # store the image into ComfyUI's input folder
             file_path = os.path.join(COMFY_UI_DIR, "input", f"{job_id}.png")
             file.save(file_path)
                         
-            output_path = f"{COMFY_UI_DIR}/output/Disney_{job_id}_00001_.png"
+            output_path = f"{COMFY_UI_DIR}/output/{job_type}_{job_id}_00001_.png"
             print(f"Output path: {output_path}")
             
             conn = sqlite3.connect('image_jobs.db')
             cursor = conn.cursor()
             cursor.execute(
                 "INSERT INTO jobs (id, type, prompt, status, created_at, image_path, user_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (job_id, "disney", filename, "queued", datetime.now(), output_path, user_id)
+                (job_id, job_type, filename, "queued", datetime.now(), output_path, user_id)
             )
             conn.commit()
             conn.close()
             
             # Queue the Celery task
-            task = disney.delay(job_id, f"{job_id}.png", user_id)
+            task = runComfyUI.delay(job_id, f"{job_id}.png", user_id, job_type)
             
             return jsonify({
                 'job_id': job_id,
                 'task_id': task.id,
                 'status': 'queued',
-                'message': 'Disney transformation job has been queued'
+                'message': f'{job_type} transformation job has been queued'
             })
     else:
         return jsonify({'error': 'Invalid file type'}), 400
