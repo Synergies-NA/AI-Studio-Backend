@@ -713,6 +713,43 @@ def retry_job(job_id):
         'status': 'queued',
         'message': 'Job has been requeued'
     })
+    
+@app.route('/api/jobs', methods=['GET'], strict_slashes=False)
+@jwt_required()
+def get_user_jobs():
+    user_id = get_jwt_identity()
+    job_type = request.args.get('type', None)  # Optional query parameter for filtering by type
+
+    conn = sqlite3.connect('image_jobs.db')
+    cursor = conn.cursor()
+
+    if job_type:
+        cursor.execute(
+            "SELECT id, type, prompt, status, created_at, completed_at FROM jobs WHERE user_id = ? AND type = ? ORDER BY created_at DESC",
+            (user_id, job_type)
+        )
+    else:
+        cursor.execute(
+            "SELECT id, type, prompt, status, created_at, completed_at FROM jobs WHERE user_id = ? ORDER BY created_at DESC",
+            (user_id,)
+        )
+
+    jobs = cursor.fetchall()
+    conn.close()
+
+    return jsonify({
+        'jobs': [
+            {
+                'job_id': job[0],
+                'type': job[1],
+                'prompt': job[2],
+                'status': job[3],
+                'created_at': job[4],
+                'completed_at': job[5]
+            }
+            for job in jobs
+        ]
+    })
 
 # Admin endpoint to view all jobs
 @app.route('/api/admin/jobs', methods=['GET'])
