@@ -314,9 +314,6 @@ def disney(self, job_id, file_name, user_id):
         conn.commit()
         conn.close()
         
-        # Start monitoring processing time
-        start_time = time.time()
-        
         # Run the script for 2D-3D model
         print("Running 2D-to-2D Disney script")
         script = f"{COMFY_UI_DIR}/disney.py"
@@ -345,21 +342,7 @@ def disney(self, job_id, file_name, user_id):
                 process.stderr.close()
                 return {"status": "failed", "error": f"Failed to generate image: {stderr.strip()}"}
         
-        # Record processing time
-        processing_time = time.time() - start_time
-        PROCESSING_TIME.observe(processing_time)
-        
-        # Update job as completed
-        conn = sqlite3.connect('image_jobs.db')
-        cursor = conn.cursor()
-        cursor.execute(
-            "UPDATE jobs SET status = ?, completed_at = ?, image_path = ? WHERE id = ?", 
-            ("completed", datetime.now(), output_dir + "/0/mesh.obj", job_id)
-        )
-        conn.commit()
-        conn.close()
-        
-        return {"status": "completed", "output_dir": output_dir}
+        return {"status": "sent", "output_dir": output_dir}
     
     except Exception as e:
         # Update job as failed
@@ -542,22 +525,23 @@ def upload_image():
             })
         elif request.form['job_type'] == 'disney':
             # store the image into ComfyUI's input folder
-            file_path = os.path.join(COMFY_UI_DIR, "input", filename)
+            file_path = os.path.join(COMFY_UI_DIR, "input", f"{job_id}.png")
             file.save(file_path)
+                        
+            output_path = f"{COMFY_UI_DIR}/output/Disney_{job_id}_00001_.png"
+            print(f"Output path: {output_path}")
             
             conn = sqlite3.connect('image_jobs.db')
             cursor = conn.cursor()
             cursor.execute(
                 "INSERT INTO jobs (id, type, prompt, status, created_at, image_path, user_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (job_id, "disney", filename, "queued", datetime.now(), file_path, user_id)
+                (job_id, "disney", filename, "queued", datetime.now(), output_path, user_id)
             )
             conn.commit()
             conn.close()
             
-            print("filename: ", filename)
-            
             # Queue the Celery task
-            task = disney.delay(job_id, filename, user_id)
+            task = disney.delay(job_id, f"{job_id}.png", user_id)
             
             return jsonify({
                 'job_id': job_id,
@@ -644,7 +628,7 @@ def get_result(job_id):
             # Zip the output directory
             # Directly send the .obj file back
             return send_file(image_path, mimetype='application/octet-stream', as_attachment=True, download_name=f'{job_id}.obj')
-        elif type == 'image':
+        else:
             return send_file(image_path, mimetype='image/png')
     else:
         return jsonify({'error': 'Image file not found'}), 404
