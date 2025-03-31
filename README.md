@@ -1,14 +1,20 @@
+# About
+This is a backend server code that can handle 3 different AI models' requests concurrently: text-to-photo, 2D-to-3D transformation, AI photo style transformation. Depending on the available physical hardware limitation, you can configure how many workers can work concurrently.
+
+AI model powered by StableDiffusion, TripSR and ComfyUI.
 
 # Dependencies:
 
 Install pyTorch here: https://pytorch.org/get-started/locally/
 
-* For text-to-picture Stable-Diffusion:
+* For text-to-picture Stable-Diffusion model:
     * `pip install diffusers --upgrade`
     * `pip install invisible_watermark transformers accelerate safetensors`
 
 * Download TripoSR and follow their setup
     * Note: place TripoSR at the same level as this directory. In other words, make it accessible from this directory by "../TripoSR"
+
+* Clone the modified ComfyUI version that works with this server code [here](https://github.com/hrl-2024/ComfyUI.git).
 
 * For backend server of HMLV AI Model:
 `pip install flask flask-jwt-extended celery redis prometheus-client`
@@ -19,52 +25,19 @@ Install pyTorch here: https://pytorch.org/get-started/locally/
     * Windows: Download from the Redis website or use WSL
 
 * Download Prometheus for tracking the task queue from [here](https://prometheus.io/download/) (optional) 
-    * Copy the following to the prometheus.yml file:
-        ```
-        # my global config
-        global:
-        scrape_interval: 15s # Set the scrape interval to every 15 seconds. Default is every 1 minute.
-        evaluation_interval: 15s # Evaluate rules every 15 seconds. The default is every 1 minute.
-        # scrape_timeout is set to the global default (10s).
-
-        # Alertmanager configuration
-        alerting:
-        alertmanagers:
-            - static_configs:
-                - targets:
-                # - alertmanager:9093
-
-        # Load rules once and periodically evaluate them according to the global 'evaluation_interval'.
-        rule_files:
-        # - "first_rules.yml"
-        # - "second_rules.yml"
-
-        # A scrape configuration containing exactly one endpoint to scrape:
-        # Here it's Prometheus itself.
-        scrape_configs:
-        # The job name is added as a label `job=<job_name>` to any timeseries scraped from this config.
-        - job_name: 'flask'
-            metrics_path: '/metrics'
-            basic_auth:
-            username: 'admin'
-            password: 'admin_password'
-
-            # metrics_path defaults to '/metrics'
-            # scheme defaults to 'http'.
-
-            static_configs:
-            - targets: ["localhost:8000"]
-        ```
+    * Copy the prometheus.yml file to the Prometheus folder.
 
 # Get it Running:
 
 From the backend folder (current folder):
 1. Get redis-server running: `redis-server`
-2. Get Celery Workers running: `python celery_worker.py`
-3. Run the Flask App: `python app.py`
-From the prometheus folder:
-4. If you have prometheus downloaded, cd to that directory and `./prometheus --config.file=prometheus.yml`
-5. Get the job_monitor running: `python job_monitor.py`
+2. Run the Flask App: `python app.py`
+3. Get Celery Workers running: `python celery_worker.py`
+4. Get the job_monitor running: `python job_monitor.py`
+
+From the prometheus folder (optional. If you decide to enable Prometheus):
+
+5. If you have prometheus downloaded, cd to that directory and `./prometheus --config.file=prometheus.yml`
 
 
 # Prometheus stats
