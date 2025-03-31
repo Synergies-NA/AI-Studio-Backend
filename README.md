@@ -1,7 +1,9 @@
-# About
-This is a backend server code that can handle 3 different AI models' requests concurrently: text-to-photo, 2D-to-3D transformation, AI photo style transformation. Depending on the available physical hardware limitation, you can configure how many workers can work concurrently.
+# Introduction
+This repository contains the backend server for handling AI model requests. It integrates three AI models: TripoSR for 2D-to-3D transformations, Stable Diffusion for text-to-image generation, and a custom model powered by ComfyUI for image-to-image transformations. The backend is built with Python and utilizes SQL, Redis, and Celery to manage tasks efficiently.
 
-AI model powered by StableDiffusion, TripSR and ComfyUI.
+The server handles API requests, including database interactions and task queue management for AI model processing. Redis acts as the task manager, distributing jobs to Celery workers, which execute the AI model tasks. The system is designed to scale horizontally, allowing you to adjust the number of workers based on available hardware resources, enabling faster processing and support for more users.
+
+The API is also secured by JWT authentication, ensuring that only authorized users can access the system.
 
 # Dependencies:
 
