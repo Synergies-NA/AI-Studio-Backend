@@ -5,6 +5,8 @@ The server handles API requests, including database interactions and task queue 
 
 The API is also secured by JWT authentication, ensuring that only authorized users can access the system.
 
+Frontend demo [here](https://github.com/hrl-2024/HMLV-AI-Studio).
+
 # Dependencies:
 
 Recommanded Python version: 3.10.12
