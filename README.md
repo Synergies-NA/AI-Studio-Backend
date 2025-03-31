@@ -7,6 +7,8 @@ The API is also secured by JWT authentication, ensuring that only authorized use
 
 # Dependencies:
 
+Recommanded Python version: 3.10.12
+
 Install pyTorch here: https://pytorch.org/get-started/locally/
 
 * For text-to-picture Stable-Diffusion model:
@@ -19,7 +21,7 @@ Install pyTorch here: https://pytorch.org/get-started/locally/
 * Clone the modified ComfyUI version that works with this server code [here](https://github.com/hrl-2024/ComfyUI.git).
 
 * For backend server of HMLV AI Model:
-`pip install flask flask-jwt-extended celery redis prometheus-client`
+`pip install -r requirements.txt`
 
 * Install Redis:
     * Ubuntu/Debian: sudo apt-get install redis-server
