@@ -18,7 +18,7 @@ Install pyTorch here: https://pytorch.org/get-started/locally/
 * Download TripoSR and follow their setup
     * Note: place TripoSR at the same level as this directory. In other words, make it accessible from this directory by "../TripoSR"
 
-* Clone the modified ComfyUI version that works with this server code [here](https://github.com/hrl-2024/ComfyUI.git).
+* Clone the modified ComfyUI version that works with this server code [here](https://github.com/hrl-2024/ComfyUI.git). Place it at the same level as this directory as well (same as TripoSR). In other words, make it accessible from this directory by "../ComfyUI"
 
 * For backend server of HMLV AI Model:
 `pip install -r requirements.txt`
