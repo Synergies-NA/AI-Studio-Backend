@@ -724,10 +724,16 @@ def get_user_jobs():
     cursor = conn.cursor()
 
     if job_type:
-        cursor.execute(
-            "SELECT id, type, prompt, status, created_at, completed_at FROM jobs WHERE user_id = ? AND type = ? ORDER BY created_at DESC",
-            (user_id, job_type)
-        )
+        if job_type == "pic_transform":
+            cursor.execute(
+                "SELECT id, type, prompt, status, created_at, completed_at FROM jobs WHERE user_id = ? AND type IN ('disney', 'sketch') ORDER BY created_at DESC",
+                (user_id,)
+            )
+        else:
+            cursor.execute(
+                "SELECT id, type, prompt, status, created_at, completed_at FROM jobs WHERE user_id = ? AND type = ? ORDER BY created_at DESC",
+                (user_id, job_type)
+            )
     else:
         cursor.execute(
             "SELECT id, type, prompt, status, created_at, completed_at FROM jobs WHERE user_id = ? ORDER BY created_at DESC",
